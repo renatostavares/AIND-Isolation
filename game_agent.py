@@ -34,8 +34,36 @@ def custom_score(game, player):
     float
         The heuristic value of the current game state to the specified player.
     """
-    # TODO: finish this function!
-    raise NotImplementedError
+
+    """
+    Heuristic #1
+    Similar to lecture's improved heuristic, with additional bonus if player is
+    close to the center of the board. "Close" means it is at one of the center's
+    eight neighbors.
+
+        (#player_moves - 2 * #opponents_moves) * center_bonus
+
+    """
+    # checking for final winning/losing states
+    if game.is_loser(player):
+        return float("-inf")
+    if game.is_winner(player):
+        return float("inf")
+
+    # center of the board
+    c_x, c_y = (int(game.width/2), int(game.height/2))
+
+    # default bonus
+    bonus = 1.0
+    # player's location
+    p_x, p_y = game.get_player_location(player)
+    # if player is close to center, then add a bonus to custom_score1's move count-based heuristic
+    if abs(c_x - p_x) <= 1 and abs(c_y - p_y) <= 1:
+        bonus = 1.5 # increasing score by 50% if near board's center
+
+    player_moves = game.get_legal_moves()
+    opponent_moves = game.get_legal_moves(game.get_opponent(player))
+    return float (len(player_moves) - 2 * len(opponent_moves)) * bonus
 
 
 def custom_score_2(game, player):
@@ -60,8 +88,27 @@ def custom_score_2(game, player):
     float
         The heuristic value of the current game state to the specified player.
     """
-    # TODO: finish this function!
-    raise NotImplementedError
+
+    """
+    Heuristic #2
+    Common moves will only exist when both players are on the same phase. Since
+    this evaluation happens for future moves, the existence of common moves
+    indicates that the player is "behind" its opponent and, thus, the opponent
+    can makes moves that will block the player. Therefore, it would be wise
+    to penalize such situations.
+
+        #player_moves - #opponents_moves - #common_moves
+
+    """
+    if game.is_loser(player):
+        return float("-inf")
+    if game.is_winner(player):
+        return float("inf")
+
+    player_moves = game.get_legal_moves()
+    opponent_moves = game.get_legal_moves(game.get_opponent(player))
+    common_moves = set(player_moves).intersection(set(opponent_moves))
+    return float (len(player_moves) - len(opponent_moves) - len(common_moves))
 
 
 def custom_score_3(game, player):
@@ -86,8 +133,24 @@ def custom_score_3(game, player):
     float
         The heuristic value of the current game state to the specified player.
     """
-    # TODO: finish this function!
-    raise NotImplementedError
+
+    """
+    Heuristic #3
+    "Agressive" evaluation proposed in course. It favors positions where our
+    player will have significant move count advantage over its opponent.
+
+        #player_moves - 2 * #opponent_moves
+
+    """
+    if game.is_loser(player):
+        return float("-inf")
+    if game.is_winner(player):
+        return float("inf")
+
+    player_moves = game.get_legal_moves()
+    opponent_moves = game.get_legal_moves(game.get_opponent(player))
+    return float (len(player_moves) - 2 * len(opponent_moves))
+
 
 
 class IsolationPlayer:
@@ -212,8 +275,91 @@ class MinimaxPlayer(IsolationPlayer):
         if self.time_left() < self.TIMER_THRESHOLD:
             raise SearchTimeout()
 
-        # TODO: finish this function!
-        raise NotImplementedError
+        best_score = float("-inf")
+        best_move = (-1, -1)
+
+        # Checking for "dead" states
+        moves = game.get_legal_moves()
+        if not moves:
+            return best_move
+        else:
+            best_move = moves[0]
+
+        for move in moves:
+            v = self.min_value(game.forecast_move(move), depth - 1)
+            if v > best_score:
+                best_score = v
+                best_move = move
+
+        return best_move
+
+    def max_value(self, game, depth):
+        """AIMA-based recursive helper function to determine the value of a maximizer
+        node. If time expires, it raises a SearchTimeout.
+
+        Parameters
+        ----------
+        game : `isolation.Board`
+            An instance of `isolation.Board` encoding the current state of the
+            game (e.g., player locations and blocked cells).
+
+        depth : int
+            Depth is an integer representing the maximum number of plies to
+            search in the game tree before aborting.
+
+        Returns
+        -------
+        float
+            The value for a maximizer node.
+        """
+        # Checking for expiring time
+        if self.time_left() < self.TIMER_THRESHOLD:
+            raise SearchTimeout()
+
+        # If it is a leaf (or if the maximum depth was reached), return its score
+        moves = game.get_legal_moves()
+        if not moves or depth == 0:
+            return self.score(game, self)
+
+        v = float("-inf")
+        for move in moves:
+            v = max(v, self.min_value(game.forecast_move(move), depth - 1))
+
+        return v
+
+    def min_value(self, game, depth):
+        """AIMA-based recursive helper function to determine the value of a minimizer
+        node. If time expires, it raises a SearchTimeout.
+
+        Parameters
+        ----------
+        game : `isolation.Board`
+            An instance of `isolation.Board` encoding the current state of the
+            game (e.g., player locations and blocked cells).
+
+        depth : int
+            Depth is an integer representing the maximum number of plies to
+            search in the game tree before aborting
+
+        Returns
+        -------
+        float
+            The value for a minimizer node.
+        """
+        # Checking for expiring time
+        if self.time_left() < self.TIMER_THRESHOLD:
+            raise SearchTimeout()
+
+        # If it is a leaf (or if the maximum depth was reached), return its score
+        moves = game.get_legal_moves()
+        if not moves or depth == 0:
+            return self.score(game, self)
+
+        v = float("inf")
+        for move in moves:
+            v = min(v, self.max_value(game.forecast_move(move), depth - 1))
+
+        return v
 
 
 class AlphaBetaPlayer(IsolationPlayer):
@@ -255,7 +401,30 @@ class AlphaBetaPlayer(IsolationPlayer):
         self.time_left = time_left
 
         # TODO: finish this function!
-        raise NotImplementedError
+
+        # Initialize the best move so that this function returns something
+        # in case the search fails due to timeout
+        best_move = (-1, -1)
+
+        moves = game.get_legal_moves()
+        if not moves:
+            return best_move
+        else:
+            best_move = moves[0]
+
+        try:
+            # The try/except block will automatically catch the exception
+            # raised when the timer is about to expire.
+            depth = 1
+            while True:
+                best_move = self.alphabeta(game, depth)
+                depth += 1
+
+        except SearchTimeout:
+            pass  # Handle any actions required after timeout as needed
+
+        # Return the best move from the last completed search iteration
+        return best_move
 
     def alphabeta(self, game, depth, alpha=float("-inf"), beta=float("inf")):
         """Implement depth-limited minimax search with alpha-beta pruning as
@@ -306,4 +475,109 @@ class AlphaBetaPlayer(IsolationPlayer):
             raise SearchTimeout()
 
         # TODO: finish this function!
-        raise NotImplementedError
+        best_score = float("-inf")
+        best_move = (-1, -1)
+
+        moves = game.get_legal_moves()
+        if not moves:
+            return best_move
+        else:
+            best_move = moves[0]
+
+        for move in moves:
+            v = self.min_value(game.forecast_move(move), depth - 1, alpha, beta)
+            if v > best_score:
+                best_score = v
+                best_move = move
+            alpha = max(alpha, best_score)
+
+            # if best_score >= beta:
+            #     break
+
+        return best_move
+
+    def max_value(self, game, depth, alpha, beta):
+        """AIMA-based recursive helper function to determine the value of a
+        maximizer node. If time expires, it raises a SearchTimeout.
+
+        Parameters
+        ----------
+        game : `isolation.Board`
+            An instance of `isolation.Board` encoding the current state of the
+            game (e.g., player locations and blocked cells).
+
+        depth : int
+            Depth is an integer representing the maximum number of plies to
+            search in the game tree before aborting.
+
+        alpha : float
+            Alpha is the maximum lower bound of possible solutions.
+
+        beta : float
+            Beta is the minimum upper bound of possible solutions.
+
+        Returns
+        -------
+        float
+            The value for a maximizer node.
+        """
+        # Checking for expiring time
+        if self.time_left() < self.TIMER_THRESHOLD:
+            raise SearchTimeout()
+
+        # If it is a leaf (or if the maximum depth was reached), return its score
+        moves = game.get_legal_moves()
+        if not moves or depth == 0:
+            return self.score(game, self)
+
+        v = float("-inf")
+        for move in moves:
+            v = max(v, self.min_value(game.forecast_move(move), depth - 1, alpha, beta))
+            if v >= beta:
+                return v
+            alpha = max(alpha, v)
+
+        return v
+
+    def min_value(self, game, depth, alpha, beta):
+        """AIMA-based recursive helper function to determine the value of a
+        minimizer node. If time expires, it raises a SearchTimeout.
+
+        Parameters
+        ----------
+        game : `isolation.Board`
+            An instance of `isolation.Board` encoding the current state of the
+            game (e.g., player locations and blocked cells).
+
+        depth : int
+            Depth is an integer representing the maximum number of plies to
+            search in the game tree before aborting.
+
+        alpha : float
+            Alpha is the maximum lower bound of possible solutions.
+
+        beta : float
+            Beta is the minimum upper bound of possible solutions.
+
+        Returns
+        -------
+        float
+            The value for a minimizer node.
+        """
+        # Checking for expiring time
+        if self.time_left() < self.TIMER_THRESHOLD:
+            raise SearchTimeout()
+
+        # If it is a leaf (or if the maximum depth was reached), return its score
+        moves = game.get_legal_moves()
+        if not moves or depth == 0:
+            return self.score(game, self)
+
+        v = float("inf")
+        for move in moves:
+            v = min(v, self.max_value(game.forecast_move(move), depth - 1, alpha, beta))
+            if v <= alpha:
+                return v
+            beta = min(beta, v)
+
+        return v
